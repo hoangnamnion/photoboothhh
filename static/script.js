@@ -3,9 +3,47 @@ const video = document.getElementById("video");
 const preview = document.getElementById("preview");
 const images = [];
 
-navigator.mediaDevices.getUserMedia({ video: true })
-  .then(stream => video.srcObject = stream)
-  .catch(err => console.error("Error accessing camera:", err));
+// Cập nhật cấu hình camera cho mobile
+const constraints = {
+    video: {
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        facingMode: "user",
+        aspectRatio: { ideal: 4/3 }
+    }
+};
+
+// Thử khởi tạo camera với cấu hình mới
+async function initCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream;
+        video.play();
+        
+        // Xử lý khi video đã sẵn sàng
+        video.onloadedmetadata = () => {
+            console.log("Camera initialized successfully");
+        };
+    } catch (err) {
+        console.error("Error accessing camera:", err);
+        alert("Không thể truy cập camera. Vui lòng kiểm tra quyền truy cập camera và thử lại.");
+    }
+}
+
+// Khởi tạo camera khi trang web tải xong
+document.addEventListener('DOMContentLoaded', initCamera);
+
+// Thêm xử lý khi thay đổi hướng màn hình
+window.addEventListener('orientationchange', () => {
+    // Đợi một chút để màn hình xoay xong
+    setTimeout(() => {
+        if (video.srcObject) {
+            const tracks = video.srcObject.getTracks();
+            tracks.forEach(track => track.stop());
+            initCamera();
+        }
+    }, 500);
+});
 
 function snapPhoto() {
   const canvas = document.createElement("canvas");
