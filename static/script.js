@@ -23,6 +23,19 @@ async function initCamera() {
         // Xử lý khi video đã sẵn sàng
         video.onloadedmetadata = () => {
             console.log("Camera initialized successfully");
+            // Điều chỉnh kích thước video cho phù hợp với màn hình
+            const videoWidth = video.videoWidth;
+            const videoHeight = video.videoHeight;
+            const aspectRatio = videoWidth / videoHeight;
+            
+            // Đặt kích thước video dựa trên tỷ lệ khung hình
+            if (window.innerWidth < 768) {
+                video.style.width = '100%';
+                video.style.height = 'auto';
+            } else {
+                video.style.width = '100%';
+                video.style.height = 'auto';
+            }
         };
     } catch (err) {
         console.error("Error accessing camera:", err);
@@ -46,22 +59,33 @@ window.addEventListener('orientationchange', () => {
 });
 
 function snapPhoto() {
-  const canvas = document.createElement("canvas");
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  const ctx = canvas.getContext("2d");
-  // Lật ngang ảnh (mirror)
-  ctx.translate(canvas.width, 0);
-  ctx.scale(-1, 1);
-  ctx.drawImage(video, 0, 0);
-  
-  const imageData = canvas.toDataURL("image/png");
-  images.push(imageData);
+    const canvas = document.createElement("canvas");
+    const videoWidth = video.videoWidth;
+    const videoHeight = video.videoHeight;
+    
+    // Điều chỉnh kích thước canvas cho phù hợp với mobile
+    if (window.innerWidth < 768) {
+        canvas.width = videoWidth;
+        canvas.height = videoHeight;
+    } else {
+        canvas.width = videoWidth;
+        canvas.height = videoHeight;
+    }
+    
+    const ctx = canvas.getContext("2d");
+    // Lật ngang ảnh (mirror)
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    const imageData = canvas.toDataURL("image/jpeg", 0.9);
+    images.push(imageData);
 
-  // Create and display the captured image
-  const img = document.createElement("img");
-  img.src = imageData;
-  preview.appendChild(img);
+    // Create and display the captured image
+    const img = document.createElement("img");
+    img.src = imageData;
+    img.className = 'preview-image';
+    preview.appendChild(img);
 }
 
 document.getElementById("snap").onclick = () => {
@@ -174,42 +198,43 @@ function updatePreview() {
     if (!previewResult) return;
 
     if (selectedPhotos.length > 0 && selectedFrame) {
-        const scale = 0.5;
+        const isMobile = window.innerWidth < 768;
+        const scale = isMobile ? 0.3 : 0.5;
         let templateWidth, templateHeight, padding, gap, targetW, targetH;
 
-        // Xác định kích thước dựa trên bố cục
+        // Xác định kích thước dựa trên bố cục và thiết bị
         switch(selectedLayout) {
             case '1x3':
-                templateWidth = 900 * scale;
-                templateHeight = 2100 * scale;
-                padding = 60 * scale;
-                gap = 55 * scale;
-                targetW = 770 * scale;
-                targetH = 550 * scale;
+                templateWidth = isMobile ? 600 : 900 * scale;
+                templateHeight = isMobile ? 1400 : 2100 * scale;
+                padding = isMobile ? 40 : 60 * scale;
+                gap = isMobile ? 35 : 55 * scale;
+                targetW = isMobile ? 520 : 770 * scale;
+                targetH = isMobile ? 370 : 550 * scale;
                 break;
             case '2x3':
-                templateWidth = 1080 * scale;
-                templateHeight = 1620 * scale;
-                padding = 60 * scale;
-                gap = 30 * scale;
-                targetW = 480 * scale;
-                targetH = 480 * scale;
+                templateWidth = isMobile ? 720 : 1080 * scale;
+                templateHeight = isMobile ? 1080 : 1620 * scale;
+                padding = isMobile ? 40 : 60 * scale;
+                gap = isMobile ? 20 : 30 * scale;
+                targetW = isMobile ? 320 : 480 * scale;
+                targetH = isMobile ? 320 : 480 * scale;
                 break;
             case '1x2':
-                templateWidth = 600 * scale;
-                templateHeight = 975 * scale;
-                padding = 50 * scale;
-                gap = 50 * scale;
-                targetW = 510 * scale;
-                targetH = 350 * scale;
+                templateWidth = isMobile ? 400 : 600 * scale;
+                templateHeight = isMobile ? 650 : 975 * scale;
+                padding = isMobile ? 30 : 50 * scale;
+                gap = isMobile ? 30 : 50 * scale;
+                targetW = isMobile ? 340 : 510 * scale;
+                targetH = isMobile ? 240 : 350 * scale;
                 break;
             default: // 1x4
-                templateWidth = 600 * scale;
-                templateHeight = 1800 * scale;
-                padding = 50 * scale;
-                gap = 50 * scale;
-                targetW = 500 * scale;
-                targetH = 350 * scale;
+                templateWidth = isMobile ? 400 : 600 * scale;
+                templateHeight = isMobile ? 1200 : 1800 * scale;
+                padding = isMobile ? 30 : 50 * scale;
+                gap = isMobile ? 30 : 50 * scale;
+                targetW = isMobile ? 340 : 500 * scale;
+                targetH = isMobile ? 240 : 350 * scale;
         }
 
         const canvas = document.createElement('canvas');
@@ -263,7 +288,7 @@ function updatePreview() {
                         ctx.shadowOffsetY = 1;
                         
                         // Vẽ text với màu xám sang trọng
-                        ctx.font = 'bold 16px Arial';
+                        ctx.font = isMobile ? 'bold 12px Arial' : 'bold 16px Arial';
                         ctx.fillStyle = 'rgba(200, 200, 200, 0.9)';
                         ctx.textAlign = 'right';
                         ctx.fillText(datetimeStr, templateWidth - 20, templateHeight - 20);
