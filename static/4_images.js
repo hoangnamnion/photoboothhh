@@ -1,1022 +1,637 @@
-// Lấy tham chiếu các phần tử DOM
-const video = document.getElementById("video");
-const captureBtn = document.getElementById("captureBtn");
-const uploadBtn = document.getElementById("uploadBtn");
-const uploadInput = document.getElementById("uploadInput");
-const exportBtn = document.getElementById("exportBtn");
-const exportVideoBtn = document.getElementById("exportVideoBtn");
-const previewImagesContainer = document.getElementById("previewImages");
-const countdownEl = document.getElementById("countdown");
-const spinner = document.getElementById("spinner");
-const captureSound = document.getElementById("captureSound");
-const captureTimeSelect = document.getElementById("captureTime");
-const flipCamBtn = document.getElementById("flipCamBtn");
-const switchCamBtn = document.getElementById("switchCamBtn");
+#preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 10px 0;
+}
 
-// Tham chiếu chọn frame
-const frameOptions = document.querySelectorAll("#frameOptions img");
+#preview img {
+    width: 150px;
+    height: 100px;
+    object-fit: cover;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
 
-// Modal elements
-const videoExportModal = document.getElementById("videoExportModal");
-const currentBalanceEl = document.getElementById("currentBalance");
-const youtubeSignupBtn = document.getElementById("youtubeSignupBtn");
-const hihiBtn = document.getElementById("hihiBtn");
-const rechargeBtn = document.getElementById("rechargeBtn");
-const confirmExportBtn = document.getElementById("confirmExportBtn");
-const cancelExportBtn = document.getElementById("cancelExportBtn");
+#preview img:hover {
+    transform: scale(1.05);
+}
 
-// Canvas preview
-const templatePreviewCanvas = document.getElementById("templatePreview");
-const previewCtx = templatePreviewCanvas.getContext("2d");
+#preview img.selected {
+    border: 3px solid #4CAF50;
+    box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+}
 
-let userBalance = Number(document.getElementById('h1Balance').getAttribute("data-balance"));
+.preview-section {
+    margin: 20px 0;
+}
 
-// Mảng lưu ảnh và video; đối với ảnh upload, videoSegments sẽ chứa giá trị null
-let photoData = [];
-let videoSegments = [];
+.preview-section h2 {
+    margin: 10px 0;
+    color: #333;
+}
 
-let mediaRecorder;
-let recordedChunks = [];
+.preview-section h5 {
+    margin: 5px 0;
+    color: #666;
+    font-weight: normal;
+}
 
-// Quản lý flip và facing mode
-let isFlipped = true;
-let currentFacingMode = "user";
+------------
+/* static/style.css */
+html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+}
 
-// Frame được chọn
-let selectedFrameUrl = document.querySelector("#frameOptions img.selected").getAttribute("data-frame-url");
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    padding: 20px;
+    background-color: #ffb6c1 !important;
+    background-image: none !important;
+}
 
-// Xử lý chọn frame
-frameOptions.forEach(frameEl => {
-  frameEl.addEventListener("click", () => {
-    frameOptions.forEach(el => el.classList.remove("selected"));
-    frameEl.classList.add("selected");
-    selectedFrameUrl = frameEl.getAttribute("data-frame-url");
-    updateTemplatePreview();
-  });
-});
+html {
+    background-color: #ffb6c1 !important;
+}
 
-// Hàm khởi tạo stream
-async function startStream() {
-  // 1. Tắt stream cũ
-  if (window.stream) window.stream.getTracks().forEach(t => t.stop());
+.header {
+    text-align: center;
+    margin-bottom: 30px;
+}
 
-  // 2. Độ phân giải từ cao → thấp
-  const RES_LEVELS = [
-    { w: 4096, h: 2160 },  // 4K DCI
-    { w: 3840, h: 2160 },  // 4K UHD
-    { w: 2560, h: 1440 },  // QHD
-    { w: 1920, h: 1080 },  // Full‑HD
-    { w: 1280, h: 720  },  // HD
-    { w: 640 , h: 480  }   // VGA
-  ];
+.bang-hieu {
+    width: 70.33%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+    max-width: 600px;
+}
 
-  let stream  = null;
-  let lastErr = null;
+.main-container {
+    display: flex;
+    flex-direction: row;
+    gap: 30px;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+}
 
-  for (const { w, h } of RES_LEVELS) {
-    const constraints = {
-      video: {
-        width :  { ideal: w },
-        height:  { ideal: h },
-        facingMode: currentFacingMode       // "user" | "environment"
-      },
-      audio: false
-    };
+.camera-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
 
-    try {
-      stream = await navigator.mediaDevices.getUserMedia(constraints);
-      console.log(`> Đã mở camera ở ${w}×${h}`);
-      break; // thành công
-    } catch (err) {
-      lastErr = err;
+video {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    border-radius: 15px;
+    transform: scaleX(-1);
+    background: #000;
+    margin-bottom: 20px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    object-fit: cover;
+    aspect-ratio: 4/3;
+}
 
-      /*  Nếu lỗi do thông số vượt quá khả năng (Overconstrained) **hoặc**
-          lỗi khởi tạo nguồn (NotReadable) -> thử mức thấp hơn.
-          Các lỗi khác (NotAllowed, NotFound...) -> dừng ngay.            */
-      if (err.name === 'OverconstrainedError' || err.name === 'NotReadableError') {
-        console.warn(`Không dùng được ${w}×${h}:`, err.name);
-        continue; // thử độ phân giải tiếp theo
-      }
-      break;
+.buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 20px;
+    justify-content: center;
+    width: 100%;
+    max-width: 400px;
+}
+
+button {
+    padding: 12px 25px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #d81b8d 0%, #a07aa1 100%);
+    color: white;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    flex: 1;
+    min-width: 150px;
+    max-width: 200px;
+}
+
+button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 8px rgba(0,0,0,0.2);
+}
+
+.timer-options, .photo-count-options {
+    width: 100%;
+    max-width: 400px;
+    margin: 20px auto;
+    text-align: center;
+}
+
+.timer-options h3, .photo-count-options h3 {
+    color: #2c3e50;
+    margin-bottom: 10px;
+    font-size: 1.2rem;
+}
+
+.timer-buttons, .count-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    width: 100%;
+}
+
+.timer-btn, .count-btn {
+    flex: 1;
+    min-width: 100px;
+    max-width: 120px;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.2);
+    color: black;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 14px;
+}
+
+.timer-btn:hover, .count-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.timer-btn.selected, .count-btn.selected {
+    background: #d81b8d;
+    box-shadow: 0 0 15px rgba(216, 27, 141, 0.3);
+    color: white;
+}
+
+.preview-section {
+    flex: 1;
+    border-left: 1px solid #eee;
+    padding-left: 30px;
+    width: 100%;
+    max-width: 800px;
+}
+
+.preview-image {
+    width: 150px;
+    height: 100px;
+    object-fit: cover;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.preview-image:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.preview-image.selected {
+    border-color: #d81b8d;
+    box-shadow: 0 0 15px rgba(216, 27, 141, 0.3);
+}
+
+.preview-result {
+    width: 100%;
+    max-width: 100%;
+    margin: 10px auto;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 5px;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    min-height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.preview-result img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    object-fit: contain;
+}
+
+.preview-result.empty {
+    color: #666;
+    font-style: italic;
+}
+
+.preview-section h2 {
+    color: #2c3e50;
+    margin: 25px 0 15px;
+    font-size: 1.4rem;
+    position: relative;
+    padding-left: 15px;
+}
+
+.preview-section h2::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 5px;
+    height: 20px;
+    background: linear-gradient(135deg, #d81b8d 0%, #a07aa1 100%);
+    border-radius: 3px;
+}
+
+.frame-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 20px;
+    margin: 15px 0;
+    padding: 10px;
+}
+
+.frame-options img {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    border-radius: 15px;
+    cursor: pointer;
+    border: 3px solid transparent;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.frame-options img:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+}
+
+.frame-options img.selected {
+    border-color: #d81b8d;
+    box-shadow: 0 0 15px rgba(216, 27, 141, 0.3);
+}
+
+.camera-container {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+#video {
+    width: 640px;
+    height: 480px;
+    background: #000;
+}
+
+.controls {
+    margin: 20px 0;
+    display: flex;
+    gap: 10px;
+}
+
+button {
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    background-color: #d81b8d;
+    color: white;
+    border: none;
+    border-radius: 4px;
+}
+
+button:hover {
+    background-color: #a07aa1;
+}
+
+#preview-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.captured-photo {
+    width: 200px;
+    height: 150px;
+    object-fit: cover;
+    border: 2px solid #ddd;
+    border-radius: 4px;
+    transition: transform 0.2s;
+}
+
+.captured-photo:hover {
+    transform: scale(1.05);
+}
+
+.layout-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 15px 0;
+    justify-content: center;
+}
+
+.layout-btn {
+    flex: 1;
+    min-width: 120px;
+    max-width: 200px;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.2);
+    color: black;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 14px;
+}
+
+.layout-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.layout-btn.selected {
+    background: #d81b8d;
+    box-shadow: 0 0 15px rgba(216, 27, 141, 0.3);
+    color: white;
+}
+
+.frame-sections {
+    margin: 20px 0;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    padding: 20px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.frame-section {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.frame-section.active {
+    display: block;
+}
+
+.frame-section h3 {
+    color: #fff;
+    margin-bottom: 15px;
+    font-size: 18px;
+    text-align: center;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.frame-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 15px;
+    padding: 15px;
+}
+
+.frame-options img {
+    width: 100%;
+    height: 120px;
+    object-fit: contain;
+    cursor: pointer;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.frame-options img:hover {
+    transform: translateY(-5px);
+    border-color: rgba(255, 255, 255, 0.3);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+}
+
+.frame-options img.selected {
+    border-color: #d81b8d;
+    box-shadow: 0 0 20px rgba(216, 27, 141, 0.4);
+    transform: scale(1.05);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
     }
-  }
-
-  if (!stream) {
-    console.error('Không thể truy cập camera:', lastErr);
-    alert('Không truy cập được camera. Vui lòng kiểm tra:\n'
-        + '• Quyền truy cập camera (biểu tượng ổ khóa trên thanh địa chỉ)\n'
-        + '• Đảm bảo camera không bị ứng dụng khác sử dụng.');
-    return;
-  }
-
-  /* ---------- hiển thị & khởi tạo MediaRecorder ---------- */
-  window.stream      = stream;
-  video.srcObject    = stream;
-  video.style.transform = isFlipped ? 'scaleX(-1)' : 'scaleX(1)';
-
-  let options = { mimeType: 'video/webm' };
-  if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-    options = MediaRecorder.isTypeSupported('video/mp4') ? { mimeType: 'video/mp4' } : {};
-  }
-  try {
-    mediaRecorder = new MediaRecorder(stream, options);
-    mediaRecorder.ondataavailable = e => {
-      if (e.data && e.data.size) recordedChunks.push(e.data);
-    };
-  } catch (e) {
-    console.error('Lỗi tạo MediaRecorder:', e);
-  }
-}
-
-startStream();   // gọi lần đầu
-
-// Nút Lật Cam
-flipCamBtn.addEventListener("click", () => {
-  isFlipped = !isFlipped;
-  video.style.transform = isFlipped ? "scaleX(-1)" : "scaleX(1)";
-});
-
-// Nút Đổi Cam
-switchCamBtn.addEventListener("click", () => {
-  currentFacingMode = (currentFacingMode === "user") ? "environment" : "user";
-  startStream();
-});
-
-// Xử lý upload ảnh
-uploadBtn.addEventListener("click", () => {
-  uploadInput.click();
-});
-
-uploadInput.addEventListener("change", event => {
-  const files = event.target.files;
-  if (files.length) {
-    Array.from(files).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = e => {
-        const dataURL = e.target.result;
-        // Lưu ảnh vào photoData và thêm null vào videoSegments
-        photoData.push(dataURL);
-        videoSegments.push(null); // Không có video cho ảnh upload
-        // Tạo preview với flag upload
-        const wrapper = document.createElement("div");
-        wrapper.classList.add("preview-wrapper");
-        const imgPreview = document.createElement("img");
-        imgPreview.src = dataURL;
-        // Gán data-upload="true"
-        imgPreview.setAttribute("data-upload", "true");
-        // Tạo marker upload
-        const marker = document.createElement("div");
-        marker.classList.add("upload-marker");
-        marker.textContent = "UPLOAD";
-        wrapper.appendChild(imgPreview);
-        wrapper.appendChild(marker);
-        // Gán sự kiện click cho wrapper để chọn/deselect
-        wrapper.addEventListener("click", function () {
-          wrapper.classList.toggle("selected");
-          // Lưu ý: các ảnh upload không cần xuất video nên khi updateTemplatePreview chỉ cần dùng src
-          updateTemplatePreview();
-        });
-        previewImagesContainer.appendChild(wrapper);
-      };
-      reader.readAsDataURL(file);
-    });
-    // Reset input sau khi đọc xong
-    uploadInput.value = "";
-  }
-});
-
-// Hàm capture từ camera
-function capturePhotoCover() {
-  if (video.videoWidth === 0 || video.videoHeight === 0) {
-    alert("Video chưa sẵn sàng, hãy thử lại sau vài giây.");
-    return null;
-  }
-
-  // Phát âm thanh chụp ảnh
-  if (captureSound) {
-    captureSound.currentTime = 0; // Reset âm thanh về đầu
-    captureSound.play().catch(e => console.log("Không thể phát âm thanh:", e));
-  }
-
-  const desiredWidth = 500, desiredHeight = 350;
-  const desiredAspect = desiredWidth / desiredHeight;
-  const videoWidth = video.videoWidth, videoHeight = video.videoHeight;
-  const videoAspect = videoWidth / videoHeight;
-  let sx, sy, sWidth, sHeight;
-  if (videoAspect > desiredAspect) {
-    sHeight = videoHeight;
-    sWidth = videoHeight * desiredAspect;
-    sx = (videoWidth - sWidth) / 2;
-    sy = 0;
-  } else {
-    sWidth = videoWidth;
-    sHeight = videoWidth / desiredAspect;
-    sx = 0;
-    sy = (videoHeight - sHeight) / 2;
-  }
-  const canvas = document.createElement("canvas");
-  canvas.width = desiredWidth;
-  canvas.height = desiredHeight;
-  const ctx = canvas.getContext("2d");
-  if (isFlipped) {
-    ctx.save();
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, desiredWidth, desiredHeight);
-    ctx.restore();
-  } else {
-    ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, desiredWidth, desiredHeight);
-  }
-  return canvas.toDataURL("image/png");
-}
-
-// PHẦN quay video từ camera
-let videoRecorderController = null;
-function startVideoSegmentRecording() {
-  const desiredWidth = 500, desiredHeight = 350;
-  const canvas = document.createElement("canvas");
-  canvas.width = desiredWidth;
-  canvas.height = desiredHeight;
-  const ctx = canvas.getContext("2d");
-  let animationFrameId;
-  function drawFrame() {
-    const videoWidth = video.videoWidth, videoHeight = video.videoHeight;
-    if (videoWidth && videoHeight) {
-      const desiredAspect = desiredWidth / desiredHeight;
-      const videoAspect = videoWidth / videoHeight;
-      let sx, sy, sWidth, sHeight;
-      if (videoAspect > desiredAspect) {
-        sHeight = videoHeight;
-        sWidth = videoHeight * desiredAspect;
-        sx = (videoWidth - sWidth) / 2;
-        sy = 0;
-      } else {
-        sWidth = videoWidth;
-        sHeight = videoWidth / desiredAspect;
-        sx = 0;
-        sy = (videoHeight - sHeight) / 2;
-      }
-      if (isFlipped) {
-        ctx.save();
-        ctx.translate(canvas.width, 0);
-        ctx.scale(-1, 1);
-        ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, desiredWidth, desiredHeight);
-        ctx.restore();
-      } else {
-        ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, desiredWidth, desiredHeight);
-      }
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
-    animationFrameId = requestAnimationFrame(drawFrame);
-  }
-  drawFrame();
-  const stream = canvas.captureStream(30);
-  let recorder, chunks = [];
-  let options = { mimeType: "video/webm", videoBitsPerSecond: 300000 };
-  if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-    options = MediaRecorder.isTypeSupported("video/mp4") ? { mimeType: "video/mp4", videoBitsPerSecond: 300000 } : { videoBitsPerSecond: 300000 };
-  }
-  try {
-    recorder = new MediaRecorder(stream, options);
-  } catch (e) {
-    cancelAnimationFrame(animationFrameId);
-    console.error("Lỗi tạo MediaRecorder cho video segment:", e);
-    return null;
-  }
-  recorder.ondataavailable = event => {
-    if (event.data && event.data.size > 0) { chunks.push(event.data); }
-  };
-  const stopPromise = new Promise((resolve, reject) => {
-    recorder.onstop = () => {
-      cancelAnimationFrame(animationFrameId);
-      const blob = new Blob(chunks, { type: recorder.mimeType || "video/mp4" });
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    };
-    recorder.onerror = reject;
-  });
-  recorder.start();
-  videoRecorderController = { recorder, stopPromise };
 }
 
-async function stopVideoSegmentRecording() {
-  if (videoRecorderController && videoRecorderController.recorder.state === "recording") {
-    videoRecorderController.recorder.stop();
-    const videoData = await videoRecorderController.stopPromise;
-    videoRecorderController = null;
-    return videoData;
-  }
-  return null;
+.logo-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 10;
+    width: 100px;
+    height: 100px;
+    padding: 10px;
+    margin-left: -10px;
 }
 
-// HIỆU ỨNG FLASH VÀ COUNTDOWN
-async function runCountdown(seconds) {
-  return new Promise((resolve) => {
-    const countdownDiv = document.getElementById("countdown");
-    countdownDiv.innerHTML = "";
-    countdownDiv.style.display = "flex";
-    
-    let currentSecond = seconds;
-    
-    function updateCountdown() {
-      if (currentSecond > 0) {
-        const numberDiv = document.createElement("div");
-        numberDiv.className = "countdown-circle";
-        numberDiv.textContent = currentSecond;
-        countdownDiv.innerHTML = "";
-        countdownDiv.appendChild(numberDiv);
-        currentSecond--;
-        setTimeout(updateCountdown, 1000);
-      } else {
-        // Khi đếm ngược kết thúc, hiển thị flash và chụp ảnh
-        countdownDiv.style.display = "none";
-        resolve();
-      }
-    }
-    
-    updateCountdown();
-  });
+.logo {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
 }
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function showSpinner(message) {
-  spinner.textContent = message;
-  spinner.style.display = "flex";
-}
-function hideSpinner() {
-  spinner.style.display = "none";
-}
-function updateModal() {
-  currentBalanceEl.textContent = userBalance;
-  confirmExportBtn.disabled = (userBalance < 2000);
-}
-function hideModal() {
-  videoExportModal.style.display = "none";
-}
-async function refreshBalance() {
-  try {
-    await window.balanceManager.initializeBalance();
-    userBalance = window.balanceManager.getCurrentBalance();
-    updateModal();
-  } catch (err) {
-    console.error("Lỗi cập nhật số dư:", err);
-  }
-}
-setInterval(refreshBalance, 60000);
-
-// Cập nhật canvas preview (chỉ dùng cho xuất ảnh)
-function updateTemplatePreview() {
-  const selectedImgElems = previewImagesContainer
-        .querySelectorAll(".preview-wrapper.selected img, .preview-wrapper.selected > img");
-
-  if (selectedImgElems.length !== 4) {
-    previewCtx.clearRect(0, 0, templatePreviewCanvas.width, templatePreviewCanvas.height);
-    return;
-  }
-
-  const scale           = 0.5;
-  const templateWidth   = 600 * scale;
-  const templateHeight  = 1800 * scale;
-  const padding         = 50  * scale;
-  const gap             = 50  * scale;
-  const targetW         = 500 * scale;
-  const targetH         = 350 * scale;
-
-  templatePreviewCanvas.width  = templateWidth;
-  templatePreviewCanvas.height = templateHeight;
-  previewCtx.clearRect(0, 0, templateWidth, templateHeight);
-
-  /* ---------- 1. VẼ 4 ẢNH ----------- */
-  selectedImgElems.forEach((img, idx) => {
-    const x = padding;
-    const y = padding + idx * (targetH + gap);
-
-    const iw = img.naturalWidth;
-    const ih = img.naturalHeight;
-    const iAsp = iw / ih;
-    const tAsp = targetW / targetH;
-    let sx, sy, sW, sH;
-
-    if (iAsp > tAsp) { // ảnh quá rộng
-      sH = ih;
-      sW = ih * tAsp;
-      sx = (iw - sW) / 2;
-      sy = 0;
-    } else {           // ảnh quá cao
-      sW = iw;
-      sH = iw / tAsp;
-      sx = 0;
-      sy = (ih - sH) / 2;
-    }
-    previewCtx.drawImage(img, sx, sy, sW, sH, x, y, targetW, targetH);
-  });
-
-  /* ---------- 2. VẼ FRAME ĐÈ LÊN ----------- */
-  if (selectedFrameUrl) {
-    const frameImg = new Image();
-    frameImg.onload = () => {
-      previewCtx.drawImage(frameImg, 0, 0, templateWidth, templateHeight);
-      
-      // Thêm ngày chụp
-      const now = new Date();
-      const dateStr = now.toLocaleDateString('vi-VN', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      });
-      
-      // Thêm hiệu ứng bóng đổ rất nhẹ cho text
-      previewCtx.shadowColor = 'rgba(0, 0, 0, 0.2)';
-      previewCtx.shadowBlur = 2;
-      previewCtx.shadowOffsetX = 1;
-      previewCtx.shadowOffsetY = 1;
-      
-      // Vẽ text với gradient nhẹ
-      const gradient = previewCtx.createLinearGradient(0, templateHeight - 30, 0, templateHeight - 15);
-      gradient.addColorStop(0, '#555555');
-      gradient.addColorStop(1, '#777777');
-      previewCtx.fillStyle = gradient;
-      
-      previewCtx.font = '16px "Segoe UI", Arial, sans-serif';
-      previewCtx.textAlign = 'right';
-      previewCtx.fillText(dateStr, templateWidth - 25, templateHeight - 15);
-      
-      // Reset shadow
-      previewCtx.shadowColor = 'transparent';
-      previewCtx.shadowBlur = 0;
-      previewCtx.shadowOffsetX = 0;
-      previewCtx.shadowOffsetY = 0;
-    };
-    frameImg.src = selectedFrameUrl;
-  }
-}
-
-// Gán sự kiện click cho ảnh preview (cho cả upload và chụp từ camera)
-function attachPreviewClick(wrapper) {
-  wrapper.addEventListener("click", function () {
-    wrapper.classList.toggle("selected");
-    updateTemplatePreview();
-  });
-}
-
-// Hàm tạo preview wrapper với nút xóa
-function createPreviewWrapper(photo, index) {
-    const wrapper = document.createElement("div");
-    wrapper.classList.add("preview-wrapper");
-    
-    const imgPreview = document.createElement("img");
-    imgPreview.src = photo;
-    imgPreview.setAttribute("data-index", index);
-    
-    const deleteBtn = document.createElement("button");
-    deleteBtn.classList.add("delete-btn");
-    deleteBtn.innerHTML = "×";
-    deleteBtn.addEventListener("click", () => {
-        // Xóa ảnh khỏi mảng dữ liệu
-        photoData.splice(index, 1);
-        videoSegments.splice(index, 1);
-        // Xóa wrapper khỏi DOM
-        wrapper.remove();
-        // Cập nhật lại data-index cho các ảnh còn lại
-        const remainingWrappers = previewImagesContainer.querySelectorAll(".preview-wrapper");
-        remainingWrappers.forEach((w, i) => {
-            w.querySelector("img").setAttribute("data-index", i);
-        });
-        updateTemplatePreview();
-    });
-    
-    wrapper.appendChild(imgPreview);
-    wrapper.appendChild(deleteBtn);
-    attachPreviewClick(wrapper);
-    return wrapper;
-}
-
-// Sự kiện chụp ảnh & quay video từ camera
-captureBtn.addEventListener("click", async () => {
-    const captureTime = parseInt(captureTimeSelect.value);
-    const captureCount = parseInt(document.getElementById("captureCount").value);
-    captureBtn.disabled = true;
-    
-    // Nếu là chế độ chụp luôn (không đếm ngược)
-    if (captureTime === 0) {
-        startVideoSegmentRecording();
-        const photo = capturePhotoCover();
-        const videoData = await stopVideoSegmentRecording();
-        
-        // Thêm ảnh mới vào mảng
-        const newIndex = photoData.length;
-        photoData.push(photo);
-        videoSegments.push(videoData);
-        
-        // Tạo và thêm wrapper mới
-        const wrapper = createPreviewWrapper(photo, newIndex);
-        previewImagesContainer.appendChild(wrapper);
-    } else {
-        // Chế độ có đếm ngược, chụp đủ số lượng ảnh đã chọn
-        for (let i = 0; i < captureCount; i++) {
-            // Bắt đầu quay video
-            startVideoSegmentRecording();
-            
-            // Chạy đếm ngược và quay video cùng lúc
-            await runCountdown(captureTime);
-            
-            // Dừng quay video và lấy dữ liệu
-            const videoData = await stopVideoSegmentRecording();
-            const photo = capturePhotoCover();
-            
-            // Thêm ảnh mới vào mảng
-            const newIndex = photoData.length;
-            photoData.push(photo);
-            videoSegments.push(videoData);
-            
-            // Tạo và thêm wrapper mới
-            const wrapper = createPreviewWrapper(photo, newIndex);
-            previewImagesContainer.appendChild(wrapper);
-        }
+@media (max-width: 768px) {
+    body {
+        padding: 5px;
     }
     
-    captureBtn.disabled = false;
-});
+    .main-container {
+        flex-direction: column;
+        padding: 10px;
+        gap: 15px;
+    }
+    
+    .camera-section {
+        width: 100%;
+        order: 1;
+    }
+    
+    video {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 4/3;
+        max-height: 60vh;
+    }
+    
+    .preview-section {
+        border-left: none;
+        padding-left: 0;
+        width: 100%;
+        order: 2;
+    }
+    
+    .buttons {
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    button {
+        width: 100%;
+        max-width: none;
+        padding: 12px;
+        font-size: 1rem;
+    }
+    
+    .frame-options {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+        gap: 8px;
+    }
+    
+    .preview-image {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 4/3;
+        object-fit: cover;
+    }
 
-// Hàm ghép ảnh
-async function mergeImages(images, frameUrl) {
-    return new Promise((resolve, reject) => {
-        const scale = 0.5;
-        const templateWidth = 600 * scale;
-        const templateHeight = 1800 * scale;
-        const padding = 50 * scale;
-        const gap = 50 * scale;
-        const targetW = 500 * scale;
-        const targetH = 350 * scale;
+    .preview-result {
+        margin: 15px 0;
+    }
 
-        const canvas = document.createElement('canvas');
-        canvas.width = templateWidth;
-        canvas.height = templateHeight;
-        const ctx = canvas.getContext('2d');
+    .preview-result img {
+        max-width: 100%;
+        height: auto;
+        object-fit: contain;
+    }
 
-        // Vẽ 4 ảnh
-        let loadedImages = 0;
-        images.forEach((imgSrc, idx) => {
-            const img = new Image();
-            img.onload = () => {
-                const x = padding;
-                const y = padding + idx * (targetH + gap);
+    .layout-options {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
 
-                const iw = img.naturalWidth;
-                const ih = img.naturalHeight;
-                const iAsp = iw / ih;
-                const tAsp = targetW / targetH;
-                let sx, sy, sW, sH;
-
-                if (iAsp > tAsp) {
-                    sH = ih;
-                    sW = ih * tAsp;
-                    sx = (iw - sW) / 2;
-                    sy = 0;
-                } else {
-                    sW = iw;
-                    sH = iw / tAsp;
-                    sx = 0;
-                    sy = (ih - sH) / 2;
-                }
-                ctx.drawImage(img, sx, sy, sW, sH, x, y, targetW, targetH);
-
-                loadedImages++;
-                if (loadedImages === images.length) {
-                    // Vẽ frame
-                    const frameImg = new Image();
-                    frameImg.onload = () => {
-                        ctx.drawImage(frameImg, 0, 0, templateWidth, templateHeight);
-                        
-                        // Thêm ngày chụp
-                        const now = new Date();
-                        const dateStr = now.toLocaleDateString('vi-VN', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric'
-                        });
-                        
-                        ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
-                        ctx.shadowBlur = 2;
-                        ctx.shadowOffsetX = 1;
-                        ctx.shadowOffsetY = 1;
-                        
-                        const gradient = ctx.createLinearGradient(0, templateHeight - 30, 0, templateHeight - 15);
-                        gradient.addColorStop(0, '#555555');
-                        gradient.addColorStop(1, '#777777');
-                        ctx.fillStyle = gradient;
-                        
-                        ctx.font = '16px "Segoe UI", Arial, sans-serif';
-                        ctx.textAlign = 'right';
-                        ctx.fillText(dateStr, templateWidth - 25, templateHeight - 15);
-                        
-                        resolve(canvas.toDataURL('image/png'));
-                    };
-                    frameImg.src = frameUrl;
-                }
-            };
-            img.onerror = reject;
-            img.src = imgSrc;
-        });
-    });
+    .layout-btn {
+        padding: 10px;
+        font-size: 0.9rem;
+    }
 }
 
-exportBtn.addEventListener("click", async () => {
-    const selectedWrappers = previewImagesContainer.querySelectorAll(".preview-wrapper.selected");
-    if (selectedWrappers.length !== 4) {
-        alert("Bạn phải chọn chính xác 4 ảnh để xuất.");
-        return;
+@media (min-width: 769px) and (max-width: 1024px) {
+    .main-container {
+        max-width: 90%;
     }
 
-    // Lấy danh sách ảnh đã chọn
-    const selectedImages = Array.from(selectedWrappers).map(wrapper => 
-        wrapper.querySelector("img").src
-    );
-
-    if (!selectedFrameUrl) {
-        alert("Vui lòng chọn frame trước khi xuất ảnh.");
-        return;
+    video {
+        max-width: 800px;
     }
 
-    showSpinner("Đang xử lý ảnh...");
-    try {
-        const mergedImage = await mergeImages(selectedImages, selectedFrameUrl);
-        hideSpinner();
-
-        // Tạo link tải ảnh
-        const link = document.createElement('a');
-        link.href = mergedImage;
-        link.download = `photoboothHoangNam-${new Date().toISOString().split('T')[0]}.png`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-    } catch (error) {
-        hideSpinner();
-        console.error("Lỗi khi xuất ảnh:", error);
-        alert("Có lỗi xảy ra khi xuất ảnh. Vui lòng thử lại sau.");
+    .frame-options {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     }
-});
-
-// Hàm ghép video với khung
-async function mergeVideoWithFrame(videoData, frameUrl, duration) {
-  return new Promise((resolve) => {
-    const video = document.createElement('video');
-    video.src = videoData;
-    video.onloadedmetadata = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
-
-      // Tạo video mới với khung
-      const mediaRecorder = new MediaRecorder(canvas.captureStream(), {
-        mimeType: 'video/webm;codecs=vp9'
-      });
-      const chunks = [];
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunks.push(e.data);
-        }
-      };
-
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        resolve(url);
-      };
-
-      // Vẽ frame và video lên canvas
-      const frame = new Image();
-      frame.src = frameUrl;
-      frame.onload = () => {
-        video.play();
-        let startTime = Date.now();
-
-        function drawFrame() {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
-
-          if (Date.now() - startTime < duration * 1000) {
-            requestAnimationFrame(drawFrame);
-          } else {
-            mediaRecorder.stop();
-          }
-        }
-
-        mediaRecorder.start();
-        drawFrame();
-      };
-    };
-  });
 }
 
-// Sửa lại hàm xử lý xuất video
-exportVideoBtn.addEventListener("click", async () => {
-  const selectedWrappers = previewImagesContainer.querySelectorAll(".preview-wrapper.selected");
-  if (selectedWrappers.length !== 4) {
-    alert("Bạn phải chọn chính xác 4 video (qua ảnh preview) để xuất.");
-    return;
-  }
+@media (max-width: 480px) {
+    .main-container {
+        padding: 5px;
+    }
+    
+    .frame-options {
+        grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+        gap: 5px;
+    }
+    
+    .preview-image {
+        aspect-ratio: 3/4;
+    }
+    
+    button {
+        padding: 10px;
+        font-size: 0.9rem;
+    }
 
-  // Kiểm tra xem có ảnh nào có thuộc tính data-upload hay không
-  const hasUpload = Array.from(selectedWrappers).some(wrapper => {
-    const img = wrapper.querySelector("img");
-    return img.getAttribute("data-upload") === "true";
-  });
-  if (hasUpload) {
-    alert("Có ảnh được upload không có video. Vui lòng chọn lại hoặc chụp ảnh mới để xuất video.");
-    return;
-  }
+    .timer-options, .photo-count-options {
+        width: 100%;
+    }
 
-  showSpinner("Đang xử lý video...");
+    .timer-buttons, .count-buttons {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 5px;
+    }
+
+    .timer-btn, .count-btn {
+        padding: 8px;
+        font-size: 0.8rem;
+    }
+}
+
+#stop-capture {
+    background: #ff4444;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.3s ease;
+    margin-top: 10px;
+}
+
+#stop-capture:hover {
+    background: #ff0000;
+    transform: scale(1.05);
+}
+
+@media (max-width: 768px) {
+    #stop-capture {
+        font-size: 14px;
+        padding: 8px 16px;
+    }
+}
+
+#support-btn {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%);
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 10px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    flex: 1;
+    min-width: 150px;
+    max-width: 200px;
+}
+
+#support-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 8px rgba(0,0,0,0.2);
+    background: linear-gradient(135deg, #ff5252 0%, #ff7676 100%);
+}
+
+/* Mobile styles */
+@media (max-width: 768px) {
+    #support-btn {
+        width: 100%;
+        max-width: none;
+    }
+}
   
-  try {
-    // Lấy video data từ các ảnh đã chọn
-    const selectedVideos = Array.from(selectedWrappers).map(wrapper => {
-      const img = wrapper.querySelector("img");
-      const index = parseInt(img.getAttribute("data-index"));
-      return videoSegments[index];
-    });
-
-    // Kiểm tra video data
-    if (!selectedVideos || selectedVideos.length === 0) {
-      throw new Error("Không có video data");
-    }
-
-    // Lấy thời gian countdown từ biến countdownTime
-    const countdownDuration = countdownTime;
-
-    // Ghép video với khung
-    const mergedVideoUrl = await mergeVideoWithFrame(selectedVideos[0], selectedFrameUrl, countdownDuration);
-
-    // Tạo video container
-    const videoContainer = document.createElement('div');
-    videoContainer.style.position = 'fixed';
-    videoContainer.style.top = '0';
-    videoContainer.style.left = '0';
-    videoContainer.style.width = '100%';
-    videoContainer.style.height = '100%';
-    videoContainer.style.backgroundColor = 'rgba(0,0,0,0.8)';
-    videoContainer.style.display = 'flex';
-    videoContainer.style.flexDirection = 'column';
-    videoContainer.style.justifyContent = 'center';
-    videoContainer.style.alignItems = 'center';
-    videoContainer.style.zIndex = '1000';
-
-    // Tạo video element
-    const videoElement = document.createElement('video');
-    videoElement.style.width = '500px';
-    videoElement.style.height = '350px';
-    videoElement.style.objectFit = 'cover';
-    videoElement.style.borderRadius = '20px';
-    videoElement.controls = true;
-    videoElement.autoplay = true;
-    videoElement.src = mergedVideoUrl;
-
-    // Tạo nút tải xuống
-    const downloadBtn = document.createElement('button');
-    downloadBtn.textContent = 'Tải video';
-    downloadBtn.style.marginTop = '20px';
-    downloadBtn.style.padding = '10px 20px';
-    downloadBtn.style.backgroundColor = '#ff6b6b';
-    downloadBtn.style.color = 'white';
-    downloadBtn.style.border = 'none';
-    downloadBtn.style.borderRadius = '5px';
-    downloadBtn.style.cursor = 'pointer';
-
-    // Tạo nút đóng
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = 'Đóng';
-    closeBtn.style.position = 'absolute';
-    closeBtn.style.top = '20px';
-    closeBtn.style.right = '20px';
-    closeBtn.style.padding = '10px 20px';
-    closeBtn.style.backgroundColor = '#ff6b6b';
-    closeBtn.style.color = 'white';
-    closeBtn.style.border = 'none';
-    closeBtn.style.borderRadius = '5px';
-    closeBtn.style.cursor = 'pointer';
-
-    // Thêm các phần tử vào container
-    videoContainer.appendChild(videoElement);
-    videoContainer.appendChild(downloadBtn);
-    videoContainer.appendChild(closeBtn);
-    document.body.appendChild(videoContainer);
-
-    // Xử lý sự kiện tải xuống
-    downloadBtn.addEventListener('click', () => {
-      const a = document.createElement('a');
-      a.href = mergedVideoUrl;
-      a.download = 'video.webm';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    });
-
-    // Xử lý sự kiện đóng
-    closeBtn.addEventListener('click', () => {
-      document.body.removeChild(videoContainer);
-    });
-    
-    hideSpinner();
-  } catch (error) {
-    hideSpinner();
-    console.error("Lỗi khi xử lý video:", error);
-    alert("Có lỗi xảy ra khi xử lý video: " + error.message);
-  }
-});
-
-// Thêm hàm kiểm tra đăng ký TikTok
-async function checkTikTokSubscription() {
-  try {
-    const response = await fetch("/photobooth/check-tiktok-subscription", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      }
-    });
-    const result = await response.json();
-    return result.isSubscribed;
-  } catch (error) {
-    console.error("Lỗi khi kiểm tra đăng ký TikTok:", error);
-    return false;
-  }
-}
-
-// Hàm xem trước video
-function showVideoPreview(videoData) {
-  const previewContainer = document.createElement('div');
-  previewContainer.style.position = 'fixed';
-  previewContainer.style.top = '0';
-  previewContainer.style.left = '0';
-  previewContainer.style.width = '100%';
-  previewContainer.style.height = '100%';
-  previewContainer.style.backgroundColor = 'rgba(0,0,0,0.8)';
-  previewContainer.style.display = 'flex';
-  previewContainer.style.justifyContent = 'center';
-  previewContainer.style.alignItems = 'center';
-  previewContainer.style.zIndex = '1000';
-  
-  // Tạo container cho video và frame
-  const videoWrapper = document.createElement('div');
-  videoWrapper.style.position = 'relative';
-  videoWrapper.style.maxWidth = '90%';
-  videoWrapper.style.maxHeight = '90%';
-  
-  // Tạo video element
-  const videoElement = document.createElement('video');
-  videoElement.style.width = '100%';
-  videoElement.style.height = '100%';
-  videoElement.style.objectFit = 'cover';
-  videoElement.style.borderRadius = '20px';
-  videoElement.controls = true;
-  videoElement.autoplay = true;
-  videoElement.src = videoData;
-  
-  // Tạo frame element
-  const frameElement = document.createElement('img');
-  frameElement.src = selectedFrameUrl;
-  frameElement.style.position = 'absolute';
-  frameElement.style.top = '0';
-  frameElement.style.left = '0';
-  frameElement.style.width = '100%';
-  frameElement.style.height = '100%';
-  frameElement.style.pointerEvents = 'none';
-  frameElement.style.zIndex = '1';
-  
-  // Tạo nút đóng
-  const closeBtn = document.createElement('button');
-  closeBtn.textContent = 'Đóng';
-  closeBtn.style.position = 'absolute';
-  closeBtn.style.top = '20px';
-  closeBtn.style.right = '20px';
-  closeBtn.style.padding = '10px 20px';
-  closeBtn.style.backgroundColor = '#ff6b6b';
-  closeBtn.style.color = 'white';
-  closeBtn.style.border = 'none';
-  closeBtn.style.borderRadius = '5px';
-  closeBtn.style.cursor = 'pointer';
-  closeBtn.style.zIndex = '2';
-  
-  // Thêm các phần tử vào container
-  videoWrapper.appendChild(videoElement);
-  videoWrapper.appendChild(frameElement);
-  previewContainer.appendChild(videoWrapper);
-  previewContainer.appendChild(closeBtn);
-  document.body.appendChild(previewContainer);
-  
-  closeBtn.addEventListener('click', () => {
-    document.body.removeChild(previewContainer);
-  });
-}
-
-// Sửa lại hàm xử lý xuất video
-confirmExportBtn.addEventListener("click", async () => {
-  const selectedWrappers = previewImagesContainer.querySelectorAll(".preview-wrapper.selected");
-  let selectedVideos = [];
-  
-  // Kiểm tra và lấy video data
-  for (const wrapper of selectedWrappers) {
-    const img = wrapper.querySelector("img");
-    const dataIndex = img.getAttribute("data-index");
-    if (!dataIndex) {
-      alert("Ảnh được upload không có video! Vui lòng chọn lại hoặc chụp ảnh mới để xuất video.");
-      return;
-    }
-    const index = parseInt(dataIndex);
-    const videoData = videoSegments[index];
-    if (!videoData) {
-      alert("Một hoặc nhiều ảnh được chọn không có video! Vui lòng chọn lại hoặc chụp ảnh mới để xuất video.");
-      return;
-    }
-    selectedVideos.push(videoData);
-  }
-
-  // Kiểm tra đăng ký TikTok
-  const isSubscribed = await checkTikTokSubscription();
-  const exportCost = isSubscribed ? 0 : 2000;
-  
-  if (!window.balanceManager.hasEnoughBalance(exportCost)) {
-    if (isSubscribed) {
-      alert("Bạn đã đăng ký TikTok nên được xuất video miễn phí!");
-    } else {
-      const currentBalance = window.balanceManager.getCurrentBalance();
-      const missingAmount = exportCost - currentBalance;
-      alert(`Số dư không đủ để xuất video!\n\nSố dư hiện tại: ${currentBalance.toLocaleString()}đ\nCần thêm: ${missingAmount.toLocaleString()}đ\n\nVui lòng nạp thêm tiền hoặc đăng ký TikTok để được xuất video miễn phí.`);
-    }
-    return;
-  }
-  
-  showSpinner("Đang xử lý video...");
-  hideModal();
-  
-  try {
-    // Kiểm tra video data
-    console.log("Video data:", selectedVideos);
-    if (!selectedVideos || selectedVideos.length === 0) {
-      throw new Error("Không có video data");
-    }
-
-    // Hiển thị xem trước video đầu tiên
-    showVideoPreview(selectedVideos[0]);
-    
-    // Trừ phí nếu chưa đăng ký TikTok
-    if (!isSubscribed) {
-      window.balanceManager.deductBalance(exportCost);
-    }
-    
-    hideSpinner();
-  } catch (error) {
-    hideSpinner();
-    console.error("Lỗi khi xử lý video:", error);
-    alert("Có lỗi xảy ra khi xử lý video: " + error.message);
-  }
-});
-
-cancelExportBtn.addEventListener("click", () => {
-  hideModal();
-});
-
-// Sửa lại hàm xử lý đăng ký TikTok
-youtubeSignupBtn.addEventListener("click", async () => {
-  try {
-    const response = await fetch("/photobooth/tiktok-signup", {
-      method: "POST"
-    });
-    const result = await response.json();
-    
-    if (result.success) {
-      window.balanceManager.addBalance(10000);
-      window.open("https://www.tiktok.com/@nam_26th4", "_blank");
-      alert("Đăng ký TikTok thành công! Số dư đã được cộng thêm 10000 đồng.");
-      updateModal();
-    } else {
-      alert(result.message || "Có lỗi khi đăng ký TikTok.");
-    }
-  } catch (error) {
-    console.error(error);
-    alert("Có lỗi khi đăng ký TikTok.");
-  }
-});
-
-hihiBtn.addEventListener("click", () => {
-  window.open("https://www.facebook.com/cao.vannam.26042k5", "_blank");
-});
-
-rechargeBtn.addEventListener("click", () => {
-  window.location.href = "/deposit.html";
-});
-
-// Update the captureCount select options
-document.getElementById("captureCount").innerHTML = `
-  <option value="1" selected>1</option>
-  <option value="4">4</option>
-  <option value="8">8</option>
-`;
