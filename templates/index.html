@@ -1,0 +1,43 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Photobooth</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <h1>Photobooth</h1>
+  <video id="video" autoplay></video>
+  <button id="snap">Chụp ảnh</button>
+
+  <div>
+    <label>Chọn bố cục:</label>
+    <select id="layout">
+      <option value="1x4">1x4</option>
+      <option value="1x3">1x3</option>
+      <option value="2x3">2x3</option>
+      <option value="3x2">3x2</option>
+    </select>
+    <label>Số ảnh:</label>
+    <select id="num-photos">
+      <option value="1">1</option>
+      <option value="3">3</option>
+      <option value="5">5</option>
+      <option value="8">8</option>
+    </select>
+    <label>Thời gian chờ (giây):</label>
+    <select id="delay">
+      <option value="3">3</option>
+      <option value="5">5</option>
+      <option value="10">10</option>
+    </select>
+    <button id="create-collage">Tạo ảnh ghép</button>
+  </div>
+
+  <div id="preview"></div>
+
+  <script src="/static/script.js"></script>
+</body>
+</html>
